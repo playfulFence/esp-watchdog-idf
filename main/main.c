@@ -7,6 +7,9 @@
    CONDITIONS OF ANY KIND, either express or implied.
 */
 #include <stdio.h>
+#include <string.h>
+#include <sys/unistd.h>
+#include <sys/stat.h>
 #include "sdkconfig.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -14,6 +17,8 @@
 #include "esp_spi_flash.h"
 #include "esp_camera.h"
 #include "esp_http_server.h"
+#include "esp_spiffs.h"
+#include "esp_err.h"
 
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -37,6 +42,56 @@ void app_main(void)
         ESP_LOGE(TAG, "Couldn't initialise camera");
         return;
     }
+
+
+    ESP_LOGI(TAG, "Initializing SPIFFS");
+
+    esp_vfs_spiffs_conf_t conf = {
+      .base_path = "/spiffs",
+      .partition_label = NULL,
+      .max_files = 10,
+      .format_if_mount_failed = true
+    };
+
+    // Use settings defined above to initialize and mount SPIFFS filesystem.
+    // Note: esp_vfs_spiffs_register is an all-in-one convenience function.
+    esp_err_t ret = esp_vfs_spiffs_register(&conf);
+
+    if (ret != ESP_OK) {
+        if (ret == ESP_FAIL) {
+            ESP_LOGE(TAG, "Failed to mount or format filesystem");
+        } else if (ret == ESP_ERR_NOT_FOUND) {
+            ESP_LOGE(TAG, "Failed to find SPIFFS partition");
+        } else {
+            ESP_LOGE(TAG, "Failed to initialize SPIFFS (%s)", esp_err_to_name(ret));
+        }
+        return;
+    }
+
+    size_t total = 0, used = 0;
+    ret = esp_spiffs_info(conf.partition_label, &total, &used);
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to get SPIFFS partition information (%s). Formatting...", esp_err_to_name(ret));
+        esp_spiffs_format(conf.partition_label);
+        return;
+    } else {
+        ESP_LOGI(TAG, "Partition size: total: %d, used: %d", total, used);
+    }
+
+     
+
+     //Initialize NVS
+    ret = nvs_flash_init();
+    if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+        ESP_ERROR_CHECK(nvs_flash_erase());
+        ret = nvs_flash_init();
+    }
+    ESP_ERROR_CHECK(ret);
+
+    ESP_LOGI(TAG, "ESP_WIFI_MODE_AP");
+
+    wifi_init_softap();
+
     gpio_config_t io_conf = {};
     //disable interrupt
     io_conf.intr_type = GPIO_INTR_DISABLE;
@@ -51,21 +106,10 @@ void app_main(void)
     //configure GPIO with the given settings
     gpio_config(&io_conf);
 
-    
-     //Initialize NVS
-    esp_err_t ret = nvs_flash_init();
-    if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
-        ESP_ERROR_CHECK(nvs_flash_erase());
-        ret = nvs_flash_init();
-    }
-    ESP_ERROR_CHECK(ret);
 
-    ESP_LOGI(TAG, "ESP_WIFI_MODE_AP");
-
-    wifi_init_softap();
     
 
-    int cnt = 0;
+    int photoCnt = 0;
     while(1) {
         
         ESP_LOGI(TAG, "Awake again!");
@@ -75,7 +119,58 @@ void app_main(void)
         camera_fb_t *pic = esp_camera_fb_get();
 
         // use pic->buf to access the image
-        ESP_LOGI(TAG, "Picture taken! Its size was: %zu bytes", pic->len);
+        ESP_LOGI(TAG, "Picture taken! Its size was: %zu bytes\nCreating new file", pic->len);
+        photoCnt++;
+        char path[15];
+        switch (photoCnt)
+        {
+            case 1:
+                strcpy(path, "/spiffs/01.jpg");
+                break;
+            case 2:
+                strcpy(path, "/spiffs/02.jpg");
+                break;
+            case 3:
+                strcpy(path, "/spiffs/03.jpg");
+                break;
+            case 4:
+                strcpy(path, "/spiffs/04.jpg");
+                break;
+            case 5:
+                strcpy(path, "/spiffs/05.jpg");
+                break;
+            case 6:
+                strcpy(path, "/spiffs/06.jpg");
+                break;
+            case 7:
+                strcpy(path, "/spiffs/07.jpg");
+                break;
+            case 8:
+                strcpy(path, "/spiffs/08.jpg");
+                break;
+            case 9:
+                strcpy(path, "/spiffs/09.jpg");
+                break;
+            case 10:
+                strcpy(path, "/spiffs/10.jpg");
+                break;
+            
+            default:
+                photoCnt = 1;
+                continue;
+        }
+
+        FILE* fp = fopen(path, "w"); 
+        if (fp == NULL) 
+        {
+            ESP_LOGE(TAG, "Failed to open file for writing");
+            return;
+        }
+        fwrite(pic->buf, pic->len, 1, fp);
+        fclose(fp);
+        ESP_LOGI(TAG, "File written");
+        
+
         esp_camera_fb_return(pic);
         ESP_LOGI(TAG, "Taking 5 seconds sleep");
         vTaskDelay(5000 / portTICK_RATE_MS);
