@@ -49,7 +49,7 @@ void app_main(void)
     esp_vfs_spiffs_conf_t conf = {
       .base_path = "/spiffs",
       .partition_label = NULL,
-      .max_files = 10,
+      .max_files = 50,
       .format_if_mount_failed = true
     };
 
@@ -136,7 +136,18 @@ void app_main(void)
         fwrite(pic->buf, pic->len, 1, fp);
         fclose(fp);
         ESP_LOGI(TAG, "File %s written", path);
+
+        char uri[12];
+        sprintf(uri, "/photos%hu", photoCnt);
+
         
+        httpd_uri_t photos_uri = {
+            .uri = uri,
+            .method = HTTP_GET,
+            .handler = photos_handler
+        };
+
+        httpd_register_uri_handler(server, &photos_uri);
 
         esp_camera_fb_return(pic);
         ESP_LOGI(TAG, "Taking 5 seconds sleep");

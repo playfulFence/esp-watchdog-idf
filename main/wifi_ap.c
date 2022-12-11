@@ -1,4 +1,5 @@
 #include <string.h>
+#include <stdlib.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "esp_mac.h"
@@ -23,6 +24,7 @@
 #define WIFI_PASS      "esptesty"
 #define WIFI_CHANNEL   1
 #define MAX_STA_CONN   4
+
 
 #define TAG "wifi_softAP"
 
@@ -112,7 +114,20 @@ esp_err_t photos_handler(httpd_req_t *req){
     // snprintf(ts, 32, "%ld.%06ld", frame->timestamp.tv_sec, frame->timestamp.tv_usec);
     // httpd_resp_set_hdr(req, "X-Timestamp", (const char *)ts);
 
-    FILE* fp = fopen("/spiffs/image1.jpg", "rb");
+
+    char buf[5] = "123";
+
+    int length = strlen(req->uri) - 7;
+    if(length >= 0) {
+        strncpy(buf, req->uri + 7, length);
+        buf[length] = '\0';
+    }
+
+    char path[20];
+    sprintf(path, "/spiffs/image%d.jpg", atoi(buf));
+
+
+    FILE* fp = fopen(path, "rb");
 
     fseek(fp, 0, SEEK_END);
 
@@ -143,15 +158,10 @@ esp_err_t photos_handler(httpd_req_t *req){
     return res;
 }
 
-httpd_uri_t photos_uri = {
-    .uri = "/photos",
-    .method = HTTP_GET,
-    .handler = photos_handler
-};
-
 httpd_handle_t start_webserver(void) {
   httpd_handle_t server = NULL;
   httpd_config_t config = HTTPD_DEFAULT_CONFIG();
+  config.max_uri_handlers = 50;
 
   // Start the httpd server
   ESP_LOGI("TEST", "Starting server on port: '%d'", config.server_port);
@@ -162,7 +172,6 @@ httpd_handle_t start_webserver(void) {
     if(server == NULL){
         ESP_LOGE(TAG, "Server is NULL value");
     }
-    httpd_register_uri_handler(server, &photos_uri);
     return server;
   }
 
