@@ -17,3 +17,4 @@ void wifi_event_handler(void*, esp_event_base_t, int32_t, void*);
 
 void wifi_init_softap(void);
 
+httpd_handle_t start_webserver(void);

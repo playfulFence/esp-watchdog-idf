@@ -86,6 +86,7 @@ void app_main(void)
         ESP_ERROR_CHECK(nvs_flash_erase());
         ret = nvs_flash_init();
     }
+
     ESP_ERROR_CHECK(ret);
 
     ESP_LOGI(TAG, "ESP_WIFI_MODE_AP");
@@ -106,10 +107,12 @@ void app_main(void)
     //configure GPIO with the given settings
     gpio_config(&io_conf);
 
+    httpd_handle_t server = NULL;
 
-    
+    server = start_webserver();
 
-    int photoCnt = 0;
+
+    unsigned short photoCnt = 0;
     while(1) {
         
         ESP_LOGI(TAG, "Awake again!");
@@ -121,44 +124,8 @@ void app_main(void)
         // use pic->buf to access the image
         ESP_LOGI(TAG, "Picture taken! Its size was: %zu bytes\nCreating new file", pic->len);
         photoCnt++;
-        char path[15];
-        switch (photoCnt)
-        {
-            case 1:
-                strcpy(path, "/spiffs/01.jpg");
-                break;
-            case 2:
-                strcpy(path, "/spiffs/02.jpg");
-                break;
-            case 3:
-                strcpy(path, "/spiffs/03.jpg");
-                break;
-            case 4:
-                strcpy(path, "/spiffs/04.jpg");
-                break;
-            case 5:
-                strcpy(path, "/spiffs/05.jpg");
-                break;
-            case 6:
-                strcpy(path, "/spiffs/06.jpg");
-                break;
-            case 7:
-                strcpy(path, "/spiffs/07.jpg");
-                break;
-            case 8:
-                strcpy(path, "/spiffs/08.jpg");
-                break;
-            case 9:
-                strcpy(path, "/spiffs/09.jpg");
-                break;
-            case 10:
-                strcpy(path, "/spiffs/10.jpg");
-                break;
-            
-            default:
-                photoCnt = 1;
-                continue;
-        }
+        char path[20];
+        sprintf(path, "/spiffs/image%hu.jpg", photoCnt);
 
         FILE* fp = fopen(path, "w"); 
         if (fp == NULL) 
@@ -168,7 +135,7 @@ void app_main(void)
         }
         fwrite(pic->buf, pic->len, 1, fp);
         fclose(fp);
-        ESP_LOGI(TAG, "File written");
+        ESP_LOGI(TAG, "File %s written", path);
         
 
         esp_camera_fb_return(pic);
@@ -176,6 +143,4 @@ void app_main(void)
         vTaskDelay(5000 / portTICK_RATE_MS);
         
     }
-    
-
 }
